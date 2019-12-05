@@ -11,21 +11,17 @@ html{
     color: var(--color-3);
 }
 body {
-    background: linear-gradient(165deg, var(--color-1) 40%,var(--color-2)60%);
+    background: linear-gradient(var(--color-1),var(--color-2));
     background-repeat: no-repeat;
 }
 
-h1, h4 {
+h1 {
     background: var(--color-3);
     border-radius: 100px;
-    text-align: center;
+    display: inline-block;
     padding: 4px 15px 8px 15px;
     margin: 10px;
     color: var(--color-1);
-}
-
-p {
-    text-align: center;
 }
 
 #stopSelect, #colorSelect {
@@ -33,12 +29,6 @@ p {
     min-width: 300px;
     width: 30%;
     padding: 5px;
-}
-
-#stop-wrapper{
-    display: flex;
-    flex-direction: column;
-    max-width: 300px;
 }
 
 #stopSelect::-webkit-scrollbar, #colorSelect::-webkit-scrollbar{

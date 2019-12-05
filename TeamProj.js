@@ -11,18 +11,10 @@ $(document).ready(start);
 
 //========= Global Variables =============================================
 const routes = [];
+const selectRoutes = [];
 const stops = [];
-
-
-$(function(){
-    $('#myModal').on('show.bs.modal', function(){
-        var myModal = $(this);
-        clearTimeout(myModal.data('hideInterval'));
-        myModal.data('hideInterval', setTimeout(function(){
-            myModal.modal('hide');
-        }, 3000));
-    });
-});
+const selectStops = [];
+const arrivalInfo = [];
 
 
 function start(){
@@ -33,9 +25,34 @@ function start(){
     //select multiple stops/routes
     $(document.body).on("mousedown", "option", function(event){
         event.preventDefault();
-        $(this).prop('selected', !$(this).prop('selected'));
-        stops.push(event.currentTarget.value);
-        return false;
+        var curSelect = event.currentTarget.value; //gets number
+        var isNotNum = isNaN(event.currentTarget.value); //checks to see if it is a route or stop
+        $(this).prop('selected', !$(this).prop('selected')); //shades selected
+
+        var curIndex = selectRoutes.indexOf(curSelect); //gets index of selected Route
+        var curStopIndex = selectStops.indexOf(curSelect); //gets index of selected Stop
+
+        //if index is < 0 then we push it to the array
+        //else we splice it out of the array
+        if(curIndex < 0 && !isNotNum){
+            selectRoutes.push(event.currentTarget.value);
+            console.log("Adding: "+ curSelect);
+            console.log("Route Array Contains: " + selectRoutes);
+        }else if(curStopIndex < 0 && isNotNum){
+            selectStops.push(event.currentTarget.value);
+            console.log("Adding: "+ curSelect);
+            console.log("Stops Array Contains: " + selectStops);
+        }else if(curIndex >= 0 && !isNotNum){
+            selectRoutes.splice(curIndex, 1);
+            console.log("Deleting: " + curSelect);
+            console.log("Array Contains: "+ selectRoutes);
+        }else{
+            selectStops.splice(curStopIndex, 1);
+            console.log(selectStops[curStopIndex]);
+            console.log("Deleting: "+ curSelect);
+            console.log("Stops Array Contains: " + selectStops);
+        }
+        return false;        
     });
 
     //keypress on enter for location setting
@@ -47,9 +64,16 @@ function start(){
 
     //clicking continue on routes for manual
     $("#stopContinue").click(function(event){
+        //console debugs
+        //console.log($("#stopSelect").find('option'));
+        //console.log($("#stopSelect").find('selected'));
+        console.log(selectRoutes);
+        console.log(stops);
+
+        //actual logic
         $("#stopSelect").find('option').remove();
-        for(let i = 0; i < routes.length; i++){
-            getStops(routes[i]);
+        for(let i = 0; i < selectRoutes.length; i++){
+            getStops(selectRoutes[i]);
         }
         $("#stopContinue").remove();
     });
@@ -75,8 +99,10 @@ function start(){
         }
     });
 
-    //Alert Handler
-    $(".alert").fadeOut();
+    //Clicking Save Changes Button
+    $("#btnSaveChanges").click(function(){
+        getArrivals();
+    });
 }
 
 //========= Set Up Functions =============================================
@@ -85,6 +111,94 @@ function start(){
 function getRoutes(){
     let link = "http://52.88.188.196:8080/api/api/where/route-ids-for-agency/STA.json?key=TEST";
     $.get(link, gotRoutes, "jsonp");
+}
+
+//gets arrivals for stops we stored in the array selectStops
+function getArrivals(){
+    console.log(selectStops);
+    if(arrivalInfo.length > 0){
+        arrivalInfo.length = 0;
+    }
+    for(let i = 0; i<selectStops.length; i++){
+        let link = "http://52.88.188.196:8080/api/api/where/arrivals-and-departures-for-stop/" + selectStops[i] +".json?key=TEST"
+        $.get(link, gotArrivals, "jsonp");
+    }
+
+    console.log(arrivalInfo);
+}
+
+function gotArrivals(data){
+    //console.log(data);
+    
+    //get time stuff
+    var currentTime = data.currentTime;
+    var dateTime = new Date(currentTime);
+
+    //individual info
+    for(let i = 0; i < data.data.entry.arrivalsAndDepartures.length; i++){
+        //time info for arrivals
+        var predArrivalTime = new Date(data.data.entry.arrivalsAndDepartures[i].predictedArrivalTime);
+        var preDepartureTime = new Date(data.data.entry.arrivalsAndDepartures[i].predictedDepartureTime);
+        var arrivalHour = predArrivalTime.getHours();if(arrivalHour > 12){ arrivalHour = arrivalHour - 12;}
+        var arrivalMinutes = predArrivalTime.getMinutes();if(arrivalMinutes < 10){arrivalMinutes = 0+arrivalMinutes.toString();}
+
+
+
+        //get other info
+        var routeLongName = data.data.entry.arrivalsAndDepartures[i].routeLongName;
+        var routeShortName = data.data.entry.arrivalsAndDepartures[i].routeShortName;
+        var stopId = data.data.entry.arrivalsAndDepartures[i].stopId;
+        var calcDiffMinutes = 0;
+
+        //DEFAULT DATE IS WED DEC 31, 1969 16:00:00 GMT-0800
+        //THOUGHT: MAKE IT SO IF THE ARRIVAL IS MORE THAN A DAY FROM CURRENT THEN DON'T DISPLAY IT
+        //Catches the bad stop data
+        if(dateTime.getDay() > predArrivalTime.getDay() && dateTime.getFullYear() > predArrivalTime.getFullYear()){
+            //console.log(dateTime.getDay()+", "+dateTime.getFullYear());
+            //console.log(predArrivalTime.getDay()+", "+ predArrivalTime.getFullYear());
+            console.log("Caught Bad Stop");
+            continue;
+        }
+
+        //calculates the arrival time in minutes. If negative the bus has left
+        if(predArrivalTime.getHours() == dateTime.getHours()){
+            calcDiffMinutes = predArrivalTime.getMinutes() - dateTime.getMinutes();
+            //console.log("DEBUG IF EQUALS calcDiffMinutes: " + calcDiffMinutes);
+
+        }else if(predArrivalTime.getHours() > dateTime.getHours()){
+            calcDiffMinutes = dateTime.getMinutes() - predArrivalTime.getMinutes();
+            calcDiffMinutes = Math.abs(calcDiffMinutes-60);
+            //console.log("DEBUG ELSE IF calcDiffMinutes: " + calcDiffMinutes);
+
+        }else{
+            calcDiffMinutes = predArrivalTime.getMinutes() - dateTime.getMinutes();
+            calcDiffMinutes = calcDiffMinutes - 60;
+            console.log("DEBUG ELSE calcDiffMinutes" + calcDiffMinutes);
+            continue;
+            //If you hit this then the bus has already departed and we don't care about it honestly.
+            //it only hits if the arriving bus has an hour earlier than the current hour. 
+            //Therefore, already departed.
+        }
+
+        //debug for all information
+        //console.log("Route: " + routeLongName + ", StopId: " + stopId + ", Arrival Time: " + predArrivalTime + ", Departure Time: " + preDepartureTime); 
+
+        console.log(routeShortName + " " + routeLongName + " arrives at "+ arrivalHour+":"+arrivalMinutes + " in " + calcDiffMinutes +" minutes");
+        if(calcDiffMinutes > 2){
+            arrivalInfo.push("Bus " + routeShortName + " @ " + arrivalHour+":"+arrivalMinutes + " in " + calcDiffMinutes +" minutes");
+        }else if(calcDiffMinutes >= 0){
+            arrivalInfo.push("Bus " + routeShortName + " @ " + arrivalHour+":"+arrivalMinutes + " ARRIVING NOW");
+        }
+        /*
+        //Console Debug
+        if(calcDiffMinutes < 0 ){
+            console.log("Bus #" + routeShortName + " " + routeLongName + " Departed " + calcDiffMinutes * -1 + " minutes ago @ " + preDepartureTime);
+            
+        }else{
+            console.log("Bus #" + routeShortName + " " + routeLongName + " Departs in " + calcDiffMinutes + " minutes @ " + preDepartureTime);
+        }
+        */
+    }
 }
 
 function gotRoutes(data){
@@ -98,6 +212,10 @@ function gotRoutes(data){
     }
 }
 
+function catchArrivals(data){
+    stopsData.push(data);   
+}
+
 function displayRoutes(route){
     let opt = document.createElement("option");
     opt.value = route;
@@ -105,6 +223,10 @@ function displayRoutes(route){
     opt.setAttribute("id", route);
     
     $("#stopSelect").append(opt);
+}
+
+function displayArrival(){
+
 }
 
 
@@ -119,13 +241,13 @@ function getRoutesLoc(data){
     let lat = data.results[0].geometry.location.lat;
     let long = data.results[0].geometry.location.lng;
 
-    let link = "http://52.88.188.196:8080/api/api/where/stops-for-location.json?key=TEST&lat=" + lat + "&lon=" + long + "&radius=100";
+    let link = "http://52.88.188.196:8080/api/api/where/stops-for-location.json?key=TEST&lat=" + lat + "&lon=" + long + "&radius=80";
     $.get(link, gotRoutesLoc, "jsonp");
 }
 
 function gotRoutesLoc(data){
     for(let i = 0; i < data.data.list.length; i++){
-        console.log(data.data.list[i]);
+        //console.log(data.data.list[i]);
         displayStops(data.data.list[i].id);
     }
 }
@@ -134,16 +256,21 @@ function gotRoutesLoc(data){
 
 // ------- Stops ---------
 function getStops(id){
+    console.log("ID: " + id);
     let link = "http://52.88.188.196:8080/api/api/where/stops-for-route/STA_" + id + ".json?key=TEST";
     $.get(link, gotStops, "jsonp");
 }
 
+//  currently displaying ALL stops(?)
 function gotStops(data){
-    for(let i = 0; i < data.data.references.stops.length; i++){
-        stops.push(data.data.references.stops[i].name);
-        displayStops(data.data.references.stops[i].name);
-        console.log(data.data.references.stops.length);
+    console.log(data.data.entry.stopIds.length); //displays every route I think
+    
+    for(let i = 0; i < data.data.entry.stopIds.length; i++){
+        stops.push(data.data.entry.stopIds[i]);
+        displayStops(data.data.entry.stopIds[i]);
+        //console.log(data.data.entry.stopIds[i]);
     }
+    
 }
 
 function displayStops(stop){
@@ -196,24 +323,9 @@ function colorChanged(){
 }
 
 
-// --------- Save Stops ----------------
-function saveChanges(){
-    console.log($("#stopSelect"));
-    for(let i = 0; i < $("#stopSelect").val(); i++){
-
-    }
-}
 
 //========= Helper Functions =============================================
 
 function sortNumber(a, b){
     return a - b;
-}
-
-function makeAlert(text){
-    alertDiv = document.createElement("div");
-    alertDiv.setAttribute("class", "alert alert-primary");
-    alertDiv.setAttribute("role", "alert");
-
-    
 }
