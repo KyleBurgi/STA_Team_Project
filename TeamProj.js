@@ -14,7 +14,7 @@ const routes = [];
 const selectRoutes = [];
 const stops = [];
 const selectStops = [];
-const stopsData = [];
+const arrivalInfo = [];
 
 
 function start(){
@@ -113,13 +113,18 @@ function getRoutes(){
     $.get(link, gotRoutes, "jsonp");
 }
 
-// REFACTOR THIS BITCH
+//gets arrivals for stops we stored in the array selectStops
 function getArrivals(){
     console.log(selectStops);
+    if(arrivalInfo.length > 0){
+        arrivalInfo.length = 0;
+    }
     for(let i = 0; i<selectStops.length; i++){
         let link = "http://52.88.188.196:8080/api/api/where/arrivals-and-departures-for-stop/" + selectStops[i] +".json?key=TEST"
         $.get(link, gotArrivals, "jsonp");
     }
+
+    console.log(arrivalInfo);
 }
 
 function gotArrivals(data){
@@ -134,23 +139,65 @@ function gotArrivals(data){
         //time info for arrivals
         var predArrivalTime = new Date(data.data.entry.arrivalsAndDepartures[i].predictedArrivalTime);
         var preDepartureTime = new Date(data.data.entry.arrivalsAndDepartures[i].predictedDepartureTime);
-        
+        var arrivalHour = predArrivalTime.getHours();if(arrivalHour > 12){ arrivalHour = arrivalHour - 12;}
+        var arrivalMinutes = predArrivalTime.getMinutes();if(arrivalMinutes < 10){arrivalMinutes = 0+arrivalMinutes.toString();}
+
+
 
         //get other info
         var routeLongName = data.data.entry.arrivalsAndDepartures[i].routeLongName;
+        var routeShortName = data.data.entry.arrivalsAndDepartures[i].routeShortName;
         var stopId = data.data.entry.arrivalsAndDepartures[i].stopId;
-        var calcDiffMinutes = predArrivalTime.getMinutes() - dateTime.getMinutes();
+        var calcDiffMinutes = 0;
+
+        //DEFAULT DATE IS WED DEC 31, 1969 16:00:00 GMT-0800
+        //THOUGHT: MAKE IT SO IF THE ARRIVAL IS MORE THAN A DAY FROM CURRENT THEN DON'T DISPLAY IT
+        //Catches the bad stop data
+        if(dateTime.getDay() > predArrivalTime.getDay() && dateTime.getFullYear() > predArrivalTime.getFullYear()){
+            //console.log(dateTime.getDay()+", "+dateTime.getFullYear());
+            //console.log(predArrivalTime.getDay()+", "+ predArrivalTime.getFullYear());
+            console.log("Caught Bad Stop");
+            continue;
+        }
+
+        //calculates the arrival time in minutes. If negative the bus has left
+        if(predArrivalTime.getHours() == dateTime.getHours()){
+            calcDiffMinutes = predArrivalTime.getMinutes() - dateTime.getMinutes();
+            //console.log("DEBUG IF EQUALS calcDiffMinutes: " + calcDiffMinutes);
+
+        }else if(predArrivalTime.getHours() > dateTime.getHours()){
+            calcDiffMinutes = dateTime.getMinutes() - predArrivalTime.getMinutes();
+            calcDiffMinutes = Math.abs(calcDiffMinutes-60);
+            //console.log("DEBUG ELSE IF calcDiffMinutes: " + calcDiffMinutes);
+
+        }else{
+            calcDiffMinutes = predArrivalTime.getMinutes() - dateTime.getMinutes();
+            calcDiffMinutes = calcDiffMinutes - 60;
+            console.log("DEBUG ELSE calcDiffMinutes" + calcDiffMinutes);
+            continue;
+            //If you hit this then the bus has already departed and we don't care about it honestly.
+            //it only hits if the arriving bus has an hour earlier than the current hour. 
+            //Therefore, already departed.
+        }
+
+        //debug for all information
         //console.log("Route: " + routeLongName + ", StopId: " + stopId + ", Arrival Time: " + predArrivalTime + ", Departure Time: " + preDepartureTime); 
 
-        
-        
+        console.log(routeShortName + " " + routeLongName + " arrives at "+ arrivalHour+":"+arrivalMinutes + " in " + calcDiffMinutes +" minutes");
+        if(calcDiffMinutes > 2){
+            arrivalInfo.push("Bus " + routeShortName + " @ " + arrivalHour+":"+arrivalMinutes + " in " + calcDiffMinutes +" minutes");
+        }else if(calcDiffMinutes >= 0){
+            arrivalInfo.push("Bus " + routeShortName + " @ " + arrivalHour+":"+arrivalMinutes + " ARRIVING NOW");
+        }
+        /*
         //Console Debug
         if(calcDiffMinutes < 0 ){
-            console.log(routeLongName + " Departed " + calcDiffMinutes * -1 + " minutes ago @ " + preDepartureTime);
+            console.log("Bus #" + routeShortName + " " + routeLongName + " Departed " + calcDiffMinutes * -1 + " minutes ago @ " + preDepartureTime);
             
         }else{
-            console.log(routeLongName + " Departs in " + calcDiffMinutes + " minutes @ " + preDepartureTime);
+            console.log("Bus #" + routeShortName + " " + routeLongName + " Departs in " + calcDiffMinutes + " minutes @ " + preDepartureTime);
         }
+        */
     }
 }
 
