@@ -123,15 +123,35 @@ function getArrivals(){
 }
 
 function gotArrivals(data){
-    console.log(data);
+    //console.log(data);
+    
+    //get time stuff
     var currentTime = data.currentTime;
-    console.log("Current Time: " + currentTime);
-    console.log(data.data.entry.arrivalsAndDepartures);
-    var predArrivalTime = data.data.entry.arrivalsAndDepartures[0].predictedArrivalTime;
-    var dateTime = new Date(predArrivalTime);
-    var routeLongName = data.data.entry.arrivalsAndDepartures[0].routeLongName;
-    var stopId = data.data.entry.arrivalsAndDepartures[0].stopId;
-    console.log("Route: " + routeLongName + ", StopId: " + stopId + ", Arrival Time: " + dateTime); 
+    var dateTime = new Date(currentTime);
+
+    //individual info
+    for(let i = 0; i < data.data.entry.arrivalsAndDepartures.length; i++){
+        //time info for arrivals
+        var predArrivalTime = new Date(data.data.entry.arrivalsAndDepartures[i].predictedArrivalTime);
+        var preDepartureTime = new Date(data.data.entry.arrivalsAndDepartures[i].predictedDepartureTime);
+        
+
+        //get other info
+        var routeLongName = data.data.entry.arrivalsAndDepartures[i].routeLongName;
+        var stopId = data.data.entry.arrivalsAndDepartures[i].stopId;
+        var calcDiffMinutes = predArrivalTime.getMinutes() - dateTime.getMinutes();
+        //console.log("Route: " + routeLongName + ", StopId: " + stopId + ", Arrival Time: " + predArrivalTime + ", Departure Time: " + preDepartureTime); 
+
+        
+        
+        //Console Debug
+        if(calcDiffMinutes < 0 ){
+            console.log(routeLongName + " Departed " + calcDiffMinutes * -1 + " minutes ago @ " + preDepartureTime);
+            
+        }else{
+            console.log(routeLongName + " Departs in " + calcDiffMinutes + " minutes @ " + preDepartureTime);
+        }
+    }
 }
 
 function gotRoutes(data){
